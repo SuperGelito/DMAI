@@ -133,7 +133,9 @@ namespace CSPNamespace
         /// <returns>A list of variables ordered by remaining values</returns>
 		public List<Variable> OrderVariablesByMinimumRemainingValues()
 		{
-			return vars.Where(v=> !this.isVariableAssigned(v)).OrderBy (v => v.remDomain).ToList ();
+            var unAssignedVars = vars.Where(v => !isVariableAssigned(v)).ToList();
+
+            return unAssignedVars.OrderBy (v => v.remDomain.Count()).ToList ();
 		}
         /// <summary>
         /// Return the value that will restrict less the assignment of future variables
@@ -218,8 +220,10 @@ namespace CSPNamespace
     /// <summary>
     /// This class represents a variable to be filled with some value
     /// </summary>
-	public class Variable
+	public class Variable : IComparable
 	{
+
+
 		public Vector2 pos;
 		public OverFloorType? val;
 		public List<OverFloorType> remDomain;
@@ -261,7 +265,12 @@ namespace CSPNamespace
 		{
 			return variables.Where(v => Math.Abs(v.pos.x - this.pos.x)== 1 || Math.Abs(v.pos.y - this.pos.y)== 1).ToList();
 		}
-	}
+
+        public int CompareTo(object obj)
+        {
+            throw new NotImplementedException();
+        }
+    }
     /// <summary>
     /// Class representing the assignment of a value to a variable
     /// </summary>
@@ -355,30 +364,50 @@ namespace CSPNamespace
         public static List<Assignment> RecursiveBacktrackingSearch(CSP problem)
         {
             if (problem.Goal())
+            {
+                Debug.Log("Goal completed!");
                 return problem.GetAssignments();
+            }
             //Loop unasigned
             foreach (var variable in problem.OrderVariablesByMinimumRemainingValues())
             {
+                Debug.Log("Variable evaluated:" + variable.pos.ToString());
                 foreach (var assign in problem.OrderAssignmentsByLeastRestrictingValues(variable))
                 {
+                    Debug.Log("Value evaluated:" + assign.value.ToString());
                     //Check if the assignment is valid
                     if (problem.ValidateConstraints(assign))
                     {
+                        Debug.Log("Value valid:" + assign.value.ToString());
+                        List<Assignment> validAssignments = null ;
                         bool validResult = problem.AssignValue(assign.variable, assign.value);
-
-                        if (!validResult)
-                            return null;
-
-                        var ret = RecursiveBacktrackingSearch(problem);
-
-                        if (ret != null)
-                            return ret;
+                        Debug.Log("Value assigned:" + assign.value.ToString());
+                        if (validResult)
+                        {
+                            Debug.Log("Value inference valid:" + assign.value.ToString());
+                            validAssignments = RecursiveBacktrackingSearch(problem);
+                            if (validAssignments != null)
+                            {
+                                Debug.Log("Found solution!");
+                                return validAssignments;
+                            }
+                            else
+                            {
+                                Debug.Log("Backtracking value:" + assign.value.ToString());
+                                problem.RemoveValue(assign.variable);
+                            }
+                                
+                        }
                         else
+                        {
+                            Debug.Log("Value inference invalid:" + assign.value.ToString());
+                            Debug.Log("Value removed:" + assign.value.ToString());
                             problem.RemoveValue(assign.variable);
+                        }
                     }
                 }
             }
-
+            Debug.Log("Backtracking");
             return null;
         }
 	}
