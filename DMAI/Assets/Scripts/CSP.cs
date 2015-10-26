@@ -65,6 +65,7 @@ namespace CSPNamespace
 			this.domain = domainCSP;
 			neighbours = new Dictionary<Vector2, List<Variable>> ();
 			assignments = new List<Assignment>();
+
             this.toleranceFM = toleranceFM;
             this.toleranceFW = toleranceFW;
 			for(int i=0;i<varsCSP.Count();i++)
@@ -133,7 +134,7 @@ namespace CSPNamespace
         /// <returns>A list of variables ordered by remaining values</returns>
 		public List<Variable> OrderVariablesByMinimumRemainingValues()
 		{
-			return vars.Where(v=> !this.isVariableAssigned(v)).OrderBy (v => v.remDomain).ToList ();
+			return vars.Where(v=> !this.isVariableAssigned(v)).OrderBy (v => v.remDomain.Count()).ToList ();
 		}
         /// <summary>
         /// Return the value that will restrict less the assignment of future variables
@@ -148,7 +149,7 @@ namespace CSPNamespace
                 remAssignments.Add(new Assignment(var, remValue));
             }
 
-			return assignments.OrderByDescending (a => ConflictAssignment (a)).ToList();
+			return remAssignments.OrderByDescending (a => ConflictAssignment (a)).ToList();
 		}
 
         /// <summary>
