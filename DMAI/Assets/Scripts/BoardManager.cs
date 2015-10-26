@@ -70,7 +70,7 @@ public class BoardManager : MonoBehaviour {
         System.Random random = new System.Random();
 
         //Get number of tiles
-        var totalNumberOfTiles = this.numTiles ^ 2;
+        var totalNumberOfTiles = this.numTiles * this.numTiles;
         var numberOfRandomTiles = totalNumberOfTiles * randomGeneratedTilesRate / 100;
         
         //Repeat until all required random values have been generated
