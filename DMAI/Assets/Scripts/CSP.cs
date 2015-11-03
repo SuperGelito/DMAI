@@ -150,7 +150,7 @@ namespace CSPNamespace
                 remAssignments.Add(new Assignment(var, remValue));
             }
 
-			return assignments.OrderByDescending (a => ConflictAssignment (a)).ToList();
+			return remAssignments.OrderByDescending (a => ConflictAssignment (a)).ToList();
 		}
 
         /// <summary>
@@ -369,10 +369,12 @@ namespace CSPNamespace
                 return problem.GetAssignments();
             }
             //Loop unasigned
-            foreach (var variable in problem.OrderVariablesByMinimumRemainingValues())
+            var orderedVars = problem.OrderVariablesByMinimumRemainingValues();
+            foreach (var variable in orderedVars)
             {
                 Debug.Log("Variable evaluated:" + variable.pos.ToString());
-                foreach (var assign in problem.OrderAssignmentsByLeastRestrictingValues(variable))
+                var orderedAssignments = problem.OrderAssignmentsByLeastRestrictingValues(variable);
+                foreach (var assign in orderedAssignments)
                 {
                     Debug.Log("Value evaluated:" + assign.value.ToString());
                     //Check if the assignment is valid
