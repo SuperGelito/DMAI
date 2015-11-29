@@ -26,27 +26,31 @@ public class BoardManager : MonoBehaviour {
 		matrix = new Cell[this.numTiles, this.numTiles];
 		boardHolder = new GameObject ("Board").transform;
 
-        matrix = InitializeBoard(matrix);
-
-        matrix = GenerateRandomTiles(matrix);
-
-        //Create a CSP to fill the remaining data
-        List<Variable> vars = ConvertMatrixToVars(matrix);
-        List <OverFloorType> values = Enum.GetValues(typeof(OverFloorType)).OfType<OverFloorType>().Where(o => Convert.ToInt32(o) >= 0).ToList();
-        CSP problem = new CSP(vars, values, toleranceFW, toleranceFM);
-        //Use recursive backtracking to get a solution
-        List<Assignment> assignments = Search.RecursiveBacktrackingSearch(problem);
-        //Loop assignments
-        if (assignments != null)
+        bool foundSolution = false;
+        List<Assignment> assignments = new List<Assignment>();
+        while (!foundSolution)
         {
-            foreach (var ass in assignments)
-            {
-                int x = (int)ass.variable.pos.x;
-                int y = (int)ass.variable.pos.y;
-                matrix[x,y].overFloor = ass.value;
-                CreateTile(new Vector3(ass.variable.pos.x, ass.variable.pos.y), ass.value);
-            }
-            
+            matrix = InitializeBoard(matrix);
+
+            matrix = GenerateRandomTiles(matrix);
+
+            //Create a CSP to fill the remaining data
+            List<Variable> vars = ConvertMatrixToVars(matrix);
+            List<OverFloorType> values = Enum.GetValues(typeof(OverFloorType)).OfType<OverFloorType>().Where(o => Convert.ToInt32(o) >= 0).ToList();
+            CSP problem = new CSP(vars, values, toleranceFW, toleranceFM);
+            //Use recursive backtracking to get a solution
+            assignments = Search.RecursiveBacktrackingSearch(problem);
+            if (assignments != null)
+                foundSolution = true;
+        }
+
+        //Loop assignments
+        foreach (var ass in assignments)
+        {
+            int x = (int)ass.variable.pos.x;
+            int y = (int)ass.variable.pos.y;
+            matrix[x,y].overFloor = ass.value;
+            CreateTile(new Vector3(ass.variable.pos.x, ass.variable.pos.y), ass.value);
         }
         
 	}
@@ -72,9 +76,9 @@ public class BoardManager : MonoBehaviour {
         //Get number of tiles
         var totalNumberOfTiles = this.numTiles * this.numTiles;
         var numberOfRandomTiles = totalNumberOfTiles * randomGeneratedTilesRate / 100;
+        //List with all possible values
+        List<OverFloorType> values = Enum.GetValues(typeof(OverFloorType)).OfType<OverFloorType>().Where(o => Convert.ToInt32(o) >= 0).ToList();
         
-        //Repeat until all required random values have been generated
-        List<OverFloorType> randomGeneratedTypes = new List<OverFloorType>();
         for (int i = 0; i < numberOfRandomTiles; i++)
         {
             bool generatedValue = false;
@@ -89,19 +93,19 @@ public class BoardManager : MonoBehaviour {
                 {
                     //Generate a random value
                     Array overfloortypes = Enum.GetValues(typeof(OverFloorType));
-                    OverFloorType randomType = (OverFloorType)overfloortypes.GetValue(random.Next(0, overfloortypes.Length));
-                    //Add to a copy to validate tolerance
-                    List<OverFloorType> randomGeneratedTypesLocal = randomGeneratedTypes;
-                    randomGeneratedTypesLocal.Add(randomType);
-                    //If tolerance is higher than allowed
-                    if (Math.Abs(randomGeneratedTypesLocal.Count(r => r == OverFloorType.Floor) - randomGeneratedTypesLocal.Count(r => r == OverFloorType.Mud)) <= toleranceFM
-                        &&
-                        Math.Abs(randomGeneratedTypesLocal.Count(r => r == OverFloorType.Floor) - randomGeneratedTypesLocal.Count(r => r == OverFloorType.Wall)) <= toleranceFW)
+                    OverFloorType randomType = OverFloorType.NONE;
+                    while (randomType == OverFloorType.NONE)
+                        randomType = (OverFloorType)overfloortypes.GetValue(random.Next(0, overfloortypes.Length));
+                    //Assign the value
+                    matrix[x, y].overFloor = randomType;
+                    List<Variable> vars = ConvertMatrixToVars(matrix);
+                    CSP problem = new CSP(vars, values, toleranceFW, toleranceFM);
+                    if (problem.ValidateConstraints())
                     {
-                        //Assign the value
-                        matrix[x, y].overFloor = randomType;
                         generatedValue = true;
                     }
+                    else
+                        matrix[x, y].overFloor = OverFloorType.NONE;
                 }
             }
         }
@@ -125,8 +129,12 @@ public class BoardManager : MonoBehaviour {
 
 	private void CreateTile(Vector3 pos,OverFloorType over)
 	{
-		GameObject tile = (GameObject)GameObject.Instantiate (this.Tile,pos, Quaternion.identity);
+        int quantityToCenter = -5;
 
+        Vector3 centeredPos = new Vector3(pos.x + quantityToCenter, pos.y + quantityToCenter);
+
+        GameObject tile = (GameObject)GameObject.Instantiate (this.Tile, centeredPos, Quaternion.identity);
+        
 		tile.transform.SetParent (boardHolder);
 		GameObject toInstantiate = null;
 		switch (over) {
@@ -141,7 +149,7 @@ public class BoardManager : MonoBehaviour {
 		}
 
 		if (toInstantiate != null) {
-			GameObject overObject = (GameObject)GameObject.Instantiate (toInstantiate, pos, Quaternion.identity);
+			GameObject overObject = (GameObject)GameObject.Instantiate (toInstantiate, centeredPos, Quaternion.identity);
 			overObject.transform.SetParent(tile.transform);
 		}
 

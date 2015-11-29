@@ -12,7 +12,7 @@ namespace CSPNamespace
 	public class CSP
 	{
 		//CSP elements
-		private List<Variable> vars;
+		public List<Variable> vars;
 		private List<OverFloorType> domain;
 		private Dictionary<Vector2,List<Variable>> neighbours;
 		private List<Assignment> assignments;
@@ -28,17 +28,19 @@ namespace CSPNamespace
 		/// </summary>
 		/// <param name="var">Variable to check</param>
 		/// <param name="valToCheck">Value to check</param>
-		public bool ValidateConstraints(Assignment assignment)
+		public bool ValidateConstraints()
 		{
-			//This filter only applies to check when are we setting a tile with ground or mud
-			if (assignment.value != OverFloorType.Wall)
-			//Look that not all neighbours are walls
-			if (neighbours [assignment.variable.pos].All (nv => assignment.value == OverFloorType.Wall))
-				return false;
 
-
-			//Get number of elements of each val in variables
-			int countFloor = assignments.Count (a => a.value == OverFloorType.Floor);
+            foreach (var assignment in assignments)
+            { 
+                //This filter only applies to check when are we setting a tile with ground or mud
+                if (assignment.value != OverFloorType.Wall)
+                    //Look that not all neighbours are walls
+                    if (neighbours[assignment.variable.pos].All(nv => assignment.value == OverFloorType.Wall))
+                        return false;
+            }
+            //Get number of elements of each val in variables
+            int countFloor = assignments.Count (a => a.value == OverFloorType.Floor);
 			int countWall = assignments.Count (a => a.value == OverFloorType.Wall);
 			int countMud = assignments.Count (a => a.value == OverFloorType.Mud);
 
@@ -53,6 +55,44 @@ namespace CSPNamespace
 
 			return true;
 		}
+
+        public CSP(CSP cspToBeCopied)
+        {
+            this.vars = new List<Variable>();
+            cspToBeCopied.vars.ForEach(v=>this.vars.Add(new Variable(v.pos,v.val,v.remDomain)));
+            this.domain = cspToBeCopied.domain.ToList();
+            this.neighbours = new Dictionary<Vector2, List<Variable>>();
+            foreach (var key in cspToBeCopied.neighbours.Keys)
+            {
+                var listNeigh = new List<Variable>();
+                foreach (var neighSour in cspToBeCopied.neighbours[key])
+                {
+                    var variableDest = this.vars.First(v => v.pos == neighSour.pos);
+                    listNeigh.Add(variableDest);
+                }
+                this.neighbours[key] = listNeigh;
+            }
+            this.assignments = new List<Assignment>();
+            foreach (var ass in cspToBeCopied.assignments)
+            {
+                var variableDest = this.vars.First(v => v.pos == ass.variable.pos);
+                var assignDest = new Assignment(variableDest, ass.value);
+                assignDest.domainPrune = new Dictionary<Vector2, List<OverFloorType>>();
+                foreach (var domPruneKey in ass.domainPrune.Keys)
+                {
+                    var listOfdomainprune = new List<OverFloorType>();
+                    foreach (var valuePruned in ass.domainPrune[domPruneKey])
+                    {
+                        listOfdomainprune.Add(valuePruned);
+                    }
+                    assignDest.domainPrune[domPruneKey] = listOfdomainprune;
+                }
+                this.assignments.Add(assignDest);
+            }
+            this.toleranceFM = cspToBeCopied.toleranceFM;
+            this.toleranceFW = cspToBeCopied.toleranceFW;
+            this.MAC3 = cspToBeCopied.MAC3;
+        }
 
 		/// <summary>
 		/// Initializes a new instance of the CSP/> class.
@@ -71,9 +111,9 @@ namespace CSPNamespace
 			{
 				Variable v = varsCSP[i];
 				neighbours[v.pos] = v.FilterNeighbours(varsCSP);
-				v.remDomain = domain;
+				v.remDomain = domain.ToList();
                 if (v.val.HasValue)
-                    assignments.Add(new Assignment(v, v.val.Value));
+                    AssignValue(v, v.val.Value, false);
 			}
 		}
 
@@ -83,15 +123,21 @@ namespace CSPNamespace
 		/// <param name="var">Variable.</param>
 		/// <param name="val">Value.</param>
         /// <returns>True if the assignment is legal</returns>
-		public bool AssignValue(Variable var,OverFloorType val)
+		public bool AssignValue(Variable var,OverFloorType val, bool inference = true)
 		{
             
 			//Create a new assignment
 			Assignment assign = new Assignment (var, val);
+            //Get current domain before MAC3 to store posible values to prune
+            List<OverFloorType> domainBeformMAC = var.remDomain.ToList();
             //Get variable prunes
-            var validAssignment = !MAC3 || Search.MAC3(ref assign, this);
+            var validAssignment = true;
+            if (inference)
+                validAssignment = Search.MAC3(ref assign, new CSP(this) );
             if (validAssignment)
-            { 
+            {
+                //Prune all values that are not a variable
+                assign.domainPrune.Add(var.pos, domainBeformMAC.Where(r => r != val).ToList());
                 //Go over variable domain prunes to remove from variables
                 foreach (var varPrune in assign.domainPrune.Keys)
                 {
@@ -133,7 +179,7 @@ namespace CSPNamespace
         /// <returns>A list of variables ordered by remaining values</returns>
 		public List<Variable> OrderVariablesByMinimumRemainingValues()
 		{
-            var unAssignedVars = vars.Where(v => !isVariableAssigned(v)).ToList();
+            var unAssignedVars = vars.Where(v => !IsVariableAssigned(v) && v.remDomain.Count() > 0).ToList();
 
             return unAssignedVars.OrderBy (v => v.remDomain.Count()).ToList ();
 		}
@@ -150,7 +196,9 @@ namespace CSPNamespace
                 remAssignments.Add(new Assignment(var, remValue));
             }
 
-			return remAssignments.OrderByDescending (a => ConflictAssignment (a)).ToList();
+            remAssignments.ForEach(a => a.nConflicts = ConflictAssignment(a));
+
+            return remAssignments.Where(a => a.validAssignment).OrderByDescending(a => a.nConflicts).ToList();
 		}
 
         /// <summary>
@@ -161,9 +209,14 @@ namespace CSPNamespace
 		public int ConflictAssignment(Assignment assign)
 		{
 			int ret;
-			AssignValue (assign.variable, assign.value);
-			ret = vars.Sum (v => v.remDomain.Count());
-			RemoveValue (assign.variable);
+            if (AssignValue(assign.variable, assign.value))
+            {
+                ret = vars.Sum(v => v.remDomain.Count());
+                RemoveValue(assign.variable);
+            }
+            else
+                ret = int.MaxValue;
+			
 			return ret;
 		}
 
@@ -201,10 +254,17 @@ namespace CSPNamespace
         /// </summary>
         /// <param name="var"></param>
         /// <returns></returns>
-        public bool isVariableAssigned(Variable var)
+        public bool IsVariableAssigned(Variable var)
         {
             return assignments.Any(a => a.variable.pos == var.pos);
         }
+
+        public OverFloorType GetVariableValue(Variable var)
+        {
+            return assignments.FirstOrDefault(a => a.variable.pos == var.pos).value;
+        }
+
+
 
         /// <summary>
         /// Return the assignments
@@ -220,7 +280,7 @@ namespace CSPNamespace
     /// <summary>
     /// This class represents a variable to be filled with some value
     /// </summary>
-	public class Variable : IComparable
+	public class Variable
 	{
 
 
@@ -239,11 +299,20 @@ namespace CSPNamespace
             this.pos = posVar;
             this.val = val;
         }
+
+        public Variable(Vector2 posVar, OverFloorType? val, List<OverFloorType> remDomain)
+        {
+            this.pos = posVar;
+            this.val = val;
+            this.remDomain = new List<OverFloorType>();
+            remDomain.ForEach(d => this.remDomain.Add(d));
+        }
+
         /// <summary>
         /// Removes a value from the domain
         /// </summary>
         /// <param name="elem">Value to be removed</param>
-		public void removeDomainElement(OverFloorType elem)
+        public void removeDomainElement(OverFloorType elem)
 		{
 			remDomain.Remove (elem);
 		}
@@ -263,13 +332,10 @@ namespace CSPNamespace
         /// <returns>List of neighbours</returns>
 		public List<Variable> FilterNeighbours(List<Variable> variables)
 		{
-			return variables.Where(v => Math.Abs(v.pos.x - this.pos.x)== 1 || Math.Abs(v.pos.y - this.pos.y)== 1).ToList();
+            return variables.Where(v => (Math.Abs(v.pos.x - this.pos.x) == 1 && Math.Abs(v.pos.y - this.pos.y) == 0)
+            || (Math.Abs(v.pos.x - this.pos.x) == 0 && Math.Abs(v.pos.y - this.pos.y) == 1)).ToList();
 		}
 
-        public int CompareTo(object obj)
-        {
-            throw new NotImplementedException();
-        }
     }
     /// <summary>
     /// Class representing the assignment of a value to a variable
@@ -278,6 +344,11 @@ namespace CSPNamespace
 	{
 		public Variable variable;
 		public OverFloorType value;
+        public int nConflicts;
+        public bool validAssignment
+        {
+            get { return nConflicts != int.MaxValue; }
+        }
         //List of variables removed from a variable
         public Dictionary<Vector2,List<OverFloorType>> domainPrune;
 
@@ -285,8 +356,11 @@ namespace CSPNamespace
 		{
 			this.variable = var;
 			this.value = val;
+            this.nConflicts = 0;
 			domainPrune = new Dictionary<Vector2, List<OverFloorType>> ();
 		}
+
+
         /// <summary>
         /// Add a prune of a value to a variable
         /// </summary>
@@ -312,48 +386,85 @@ namespace CSPNamespace
         /// <param name="neighbours">List of neighbours to start with (difference between AC3 and MAC3)</param>
         /// <returns></returns>
 		public static bool MAC3(ref Assignment assign,CSP problem){
-            //Disable Arc consistency
-            problem.MAC3 = false;
+            var position = assign.variable.pos;
+            var variableInLocalProblem = problem.vars.First(v => v.pos == position);
+
             //Add the assignment to the problem
-            problem.AssignValue(assign.variable, assign.value);
-            List<Variable> queueToCheck = new List<Variable>();
-            queueToCheck.Add(assign.variable);
-            //Create a new CSP with only neighbours variables to apply assign and remove values logic
-            while(queueToCheck.Any()) 
+            problem.AssignValue(variableInLocalProblem, assign.value,false);
+
+            List<Variable> queueToPrune = new List<Variable>();
+            queueToPrune.Add(variableInLocalProblem);
+
+            while (queueToPrune.Any())
             {
                 //Get the first variable
-                var variable = queueToCheck.First();
+                var headVariable = queueToPrune.First();
+                queueToPrune.Remove(headVariable);
+
                 //Get the neighbours of the variable
-                List<Variable> neighbours = problem.GetNeighbours(variable);
+                List<Variable> neighbours = problem.GetNeighbours(headVariable).Where(n => !problem.IsVariableAssigned(n)).ToList();
+                //Loop over neighbours
                 foreach (var neigh in neighbours)
                 {
                     //Get the list of values to delete for conflict
                     List<OverFloorType> valuesToPrune = new List<OverFloorType>();
-                    foreach (var remVal in neigh.remDomain)
+                    //Check if value is compatible with remaining values in head
+                    foreach (var valPruned in MAC3HeadTailChecker(headVariable, neigh, problem))
                     {
-                        if (!problem.isVariableAssigned(neigh) && problem.ValidateConstraints(new Assignment(neigh, remVal)))
-                        {
-                            valuesToPrune.Add(remVal);
-                        }
+                        if (!valuesToPrune.Any(v => v == valPruned))
+                            valuesToPrune.Add(valPruned);
                     }
+
                     //Remove the value from the variable domain in temporal CSP and add to the domain prune
                     foreach (var prunedVal in valuesToPrune)
                     {
+                        //Remove domain from variable in problem
                         problem.RemoveDomainElementFromVariable(neigh, prunedVal);
+                        //remove domain from variable in current variable
                         neigh.removeDomainElement(prunedVal);
+                        if (!neigh.remDomain.Any())
+                            return false;
+                        //Add prune action to assignment
                         assign.AddDomainPrune(neigh.pos, prunedVal);
                     }
-                    //Check if variable lost all domain elements
-                    if (neigh.remDomain.Any())
+
+                    if (valuesToPrune.Any())
                     {
-                        queueToCheck.Add(neigh);
+                        queueToPrune.Add(neigh);
                     }
-                    else
-                        return false;
-                }   
+                }
+            }
+            return true;
+        }
+
+        private static List<OverFloorType> MAC3HeadTailChecker(Variable headVar, Variable tailVar, CSP problem)
+        {
+            var ret = new List<OverFloorType>();
+            //Loop remaining domain values
+            var remainingDomains = tailVar.remDomain.ToList();
+            foreach (var remDomTail in remainingDomains)
+            {
+                int validTailValue = 0;
+                problem.AssignValue(tailVar, remDomTail, false);
+                var remDomainHead = headVar.remDomain.ToList();
+                foreach (var remDomHead in remDomainHead)
+                {
+                    var alreadyAssigned = problem.IsVariableAssigned(headVar);
+                        if(!alreadyAssigned)problem.AssignValue(headVar, remDomHead, false);
+                    bool valid = problem.ValidateConstraints();
+                    if (!valid)
+                    {
+                        validTailValue++;
+                        break;
+                    }
+                    if (!alreadyAssigned) problem.RemoveValue(headVar);
+                }
+                if (validTailValue == remDomainHead.Count())
+                    ret.Add(remDomTail);
+                problem.RemoveValue(tailVar);
             }
 
-            return true;
+            return ret;
         }
 
         /// <summary>
@@ -368,7 +479,7 @@ namespace CSPNamespace
                 Debug.Log("Goal completed!");
                 return problem.GetAssignments();
             }
-            //Loop unasigned
+            //Loop unassigned
             var orderedVars = problem.OrderVariablesByMinimumRemainingValues();
             foreach (var variable in orderedVars)
             {
@@ -377,36 +488,34 @@ namespace CSPNamespace
                 foreach (var assign in orderedAssignments)
                 {
                     Debug.Log("Value evaluated:" + assign.value.ToString());
+                    //Assign value 
+                    bool validResult = problem.AssignValue(assign.variable, assign.value);
+                    Debug.Log("Value assigned:" + assign.value.ToString());
                     //Check if the assignment is valid
-                    if (problem.ValidateConstraints(assign))
+                    if (validResult)
                     {
                         Debug.Log("Value valid:" + assign.value.ToString());
-                        List<Assignment> validAssignments = null ;
-                        bool validResult = problem.AssignValue(assign.variable, assign.value);
-                        Debug.Log("Value assigned:" + assign.value.ToString());
-                        if (validResult)
+                        List<Assignment> validAssignments = null;
+                        validAssignments = RecursiveBacktrackingSearch(new CSP(problem));
+                        if (validAssignments != null)
                         {
-                            Debug.Log("Value inference valid:" + assign.value.ToString());
-                            validAssignments = RecursiveBacktrackingSearch(problem);
-                            if (validAssignments != null)
-                            {
-                                Debug.Log("Found solution!");
-                                return validAssignments;
-                            }
-                            else
-                            {
-                                Debug.Log("Backtracking value:" + assign.value.ToString());
-                                problem.RemoveValue(assign.variable);
-                            }
-                                
+                            Debug.Log("Found solution!");
+                            return validAssignments;
                         }
                         else
                         {
-                            Debug.Log("Value inference invalid:" + assign.value.ToString());
-                            Debug.Log("Value removed:" + assign.value.ToString());
+                            Debug.Log("Backtracking value:" + assign.value.ToString());
                             problem.RemoveValue(assign.variable);
                         }
+
                     }
+                    else
+                    {
+                        Debug.Log("Value inference invalid:" + assign.value.ToString());
+                        Debug.Log("Value removed:" + assign.value.ToString());
+                        problem.RemoveValue(assign.variable);
+                    }
+
                 }
             }
             Debug.Log("Backtracking");
