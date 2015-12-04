@@ -490,32 +490,20 @@ namespace CSPNamespace
                     Debug.Log("Value evaluated:" + assign.value.ToString());
                     //Assign value 
                     bool validResult = problem.AssignValue(assign.variable, assign.value);
+                    if (!validResult)
+                        throw new Exception("Error getting available values");
                     Debug.Log("Value assigned:" + assign.value.ToString());
-                    //Check if the assignment is valid
-                    if (validResult)
+                    List<Assignment> validAssignments = null;
+                    validAssignments = RecursiveBacktrackingSearch(new CSP(problem));
+                    if (validAssignments != null)
                     {
-                        Debug.Log("Value valid:" + assign.value.ToString());
-                        List<Assignment> validAssignments = null;
-                        validAssignments = RecursiveBacktrackingSearch(new CSP(problem));
-                        if (validAssignments != null)
-                        {
-                            Debug.Log("Found solution!");
-                            return validAssignments;
-                        }
-                        else
-                        {
-                            Debug.Log("Backtracking value:" + assign.value.ToString());
-                            problem.RemoveValue(assign.variable);
-                        }
-
+                        return validAssignments;
                     }
                     else
                     {
-                        Debug.Log("Value inference invalid:" + assign.value.ToString());
-                        Debug.Log("Value removed:" + assign.value.ToString());
+                        Debug.Log("Backtracking value:" + assign.value.ToString());
                         problem.RemoveValue(assign.variable);
                     }
-
                 }
             }
             Debug.Log("Backtracking");
