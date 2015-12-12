@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using Assets.Scripts.Board;
 
 namespace CSPNamespace
 {
@@ -492,7 +493,6 @@ namespace CSPNamespace
                     bool validResult = problem.AssignValue(assign.variable, assign.value);
                     if (!validResult)
                         throw new Exception("Error getting available values");
-                    Debug.Log("Value assigned:" + assign.value.ToString());
                     List<Assignment> validAssignments = null;
                     validAssignments = RecursiveBacktrackingSearch(new CSP(problem));
                     if (validAssignments != null)

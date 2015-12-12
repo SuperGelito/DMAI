@@ -21,7 +21,17 @@ public  class GameManager : MonoBehaviour {
 		instance = GetInstance ();
 		DontDestroyOnLoad (gameObject);
 		boardManager.GetComponent<BoardManager> ().CreateBoard ();
-	}
+        CenterCamera(boardManager.GetComponent<BoardManager>().numTiles);
+    }
+
+    void CenterCamera(int size)
+    {
+        Camera mainCam = Camera.main;
+        int centerScreen = (int)(size /2);
+        Vector3 centerScreenVector = new Vector3(centerScreen, centerScreen, -10f);
+        mainCam.transform.position = centerScreenVector;
+        mainCam.orthographicSize = Mathf.RoundToInt(size / 2) ;
+    }
 
 	// Update is called once per frame
 	void Update () {
