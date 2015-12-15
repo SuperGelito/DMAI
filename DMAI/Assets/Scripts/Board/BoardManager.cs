@@ -28,7 +28,32 @@ public class BoardManager : MonoBehaviour {
     private Dictionary<Guid, GameObject> charInstances;
 	private Transform boardHolder;
 
+    public GameObject guiManager;
+    private GameObject guiManagerInstance;
 
+    public Vector3 BoardCenter { get
+        {
+            
+var x = guiManagerInstance.transform.position.x;
+var y = guiManagerInstance.transform.position.y;
+            var lateralMenuSize = guiManagerInstance.GetComponent<GuiManager>().HeroLateralMenu.GetComponent<RectTransform>().rect.width;
+            return new Vector3(x + lateralMenuSize / 2, y,-10f);
+        } }
+
+    /// <summary>
+    /// Override to start gui manager
+    /// </summary>
+    void Awake()
+    {
+        int centerScreen = numTiles / 2;
+        Vector3 centerScreenVector = new Vector3(centerScreen, centerScreen, -10f);
+        guiManagerInstance = (GameObject)GameObject.Instantiate(this.guiManager, centerScreenVector, Quaternion.identity);
+        guiManagerInstance.GetComponent<GuiManager>().FitSize();
+        RectTransform transform = guiManagerInstance.GetComponent<RectTransform>();
+        transform.sizeDelta = new Vector2(numTiles, numTiles);
+        guiManagerInstance.GetComponent<GuiManager>().SetHeroLatealMenu();
+
+    }
 
     #region Board control
     /// <summary>
@@ -40,7 +65,7 @@ public class BoardManager : MonoBehaviour {
         heroList = new List<Hero>();
         charInstances = new Dictionary<Guid, GameObject>();
         cellInstances = new Dictionary<Guid, GameObject>();
-		boardHolder = new GameObject ("Board").transform;
+		boardHolder = this.transform;
 
 
         bool foundSolution = false;
@@ -81,14 +106,31 @@ public class BoardManager : MonoBehaviour {
         
     }
 
-    public RectTransform SelectCell(Vector2 cellPos)
+    /// <summary>
+    /// Method to select a selectable cell
+    /// </summary>
+    /// <param name="cellPos"></param>
+    /// <returns></returns>
+    public bool SelectCell(Vector3 cellPos)
     {
-        int x = (int)cellPos.x;
-        int y = (int)cellPos.y;
-        SelectedCell = new Vector2(x,y);
-        var cell = matrix[x, y];
-        var objectsInCell = cellInstances[cell.Id];
-        return objectsInCell.GetComponent<RectTransform>();
+        bool ret = false;
+        
+        if (cellPos.x >= 0 && cellPos.x < this.numTiles && cellPos.y >= 0 && cellPos.y < this.numTiles)
+        {
+            var cell = matrix[(int)cellPos.x, (int)cellPos.y];
+
+            if (cell.overFloor == OverFloorType.Wall || cell.CellOwner != null)
+            {
+                SelectedCell = cellPos;
+                guiManagerInstance.GetComponent<GuiManager>().SelectCell(cellPos);
+                ret = true;
+            }
+            else
+                ret = false;
+        }
+        else
+            ret = false;
+        return ret;
     }
     #endregion
 
