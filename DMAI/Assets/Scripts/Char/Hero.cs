@@ -6,11 +6,12 @@ using UnityEngine;
 
 namespace Assets.Scripts.Char
 {
-    public class Hero : Char
+    public abstract class Hero : Char
     {
-        public Hero(Vector2 position, CharType type) : base(position, type)
+        public HeroType heroType;
+        public Hero(Vector2 position) : base(position)
         {
-
+            this.charType = CharType.Hero;
         }
     }
 }

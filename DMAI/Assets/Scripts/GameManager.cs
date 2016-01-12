@@ -56,7 +56,10 @@ public  class GameManager : MonoBehaviour {
                 var x = Mathf.RoundToInt(v3.x);
                 var y = Mathf.RoundToInt(v3.y);
                 var selectedPosition = new Vector3(x, y);
-                boardManagerInstance.GetComponent<BoardManager>().SelectCell(selectedPosition);
+                if (boardManagerInstance.GetComponent<BoardManager>().ValidSelectCell(selectedPosition))
+                {
+                    boardManagerInstance.GetComponent<BoardManager>().SelectCell(selectedPosition);
+                }
             }
         }
     }

@@ -8,9 +8,9 @@ namespace Assets.Scripts.Char
 {
     public class Fighter: Hero
     {
-        public Fighter(Vector2 position, CharType type) : base(position, type)
+        public Fighter(Vector2 position) : base(position)
         {
-
+            this.heroType = HeroType.Fighter;
         }
     }
 }

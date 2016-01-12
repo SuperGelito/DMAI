@@ -111,9 +111,9 @@ var y = guiManagerInstance.transform.position.y;
     /// </summary>
     /// <param name="cellPos"></param>
     /// <returns></returns>
-    public bool SelectCell(Vector3 cellPos)
+    public bool ValidSelectCell(Vector3 cellPos)
     {
-        bool ret = false;
+        //bool ret = false;
         
         if (cellPos.x >= 0 && cellPos.x < this.numTiles && cellPos.y >= 0 && cellPos.y < this.numTiles)
         {
@@ -121,17 +121,33 @@ var y = guiManagerInstance.transform.position.y;
 
             if (cell.overFloor == OverFloorType.Wall || cell.CellOwner != null)
             {
-                SelectedCell = cellPos;
-                guiManagerInstance.GetComponent<GuiManager>().SelectCell(cellPos);
-                ret = true;
+                return true;
             }
-            else
-                ret = false;
         }
-        else
-            ret = false;
-        return ret;
+        return false;
     }
+
+    public void SelectCell(Vector3 cellPos)
+    {
+        guiManagerInstance.GetComponent<GuiManager>().SelectCell(cellPos);
+        var cell = matrix[(int)cellPos.x, (int)cellPos.y];
+        SelectedCell = cellPos;
+        switch (cell.CellOwner.charType)
+        {
+            case CharType.Hero:
+
+                break;
+            case CharType.Enemy:
+
+                break;
+            case CharType.NonPlayerCharacter:
+
+                break;
+            default:
+                break;             
+        }
+    }
+
     #endregion
 
 
@@ -241,12 +257,12 @@ var y = guiManagerInstance.transform.position.y;
                 Cell cell = matrix[x, y];
                 if (cell.overFloor != OverFloorType.Wall && cell.IsFree)
                 {
-                    CharType charType = (CharType)Enum.Parse(typeof(CharType),heroTypes[i].name);
+                    HeroType charType = (HeroType)Enum.Parse(typeof(HeroType),heroTypes[i].name);
                     Hero hero;
                     switch (charType)
                     {
-                        case CharType.Fighter:
-                            hero = new Fighter(new Vector2(x, y), charType);
+                        case HeroType.Fighter:
+                            hero = new Fighter(new Vector2(x, y));
                             cell.CellOwner = hero;
                             heroList.Add(hero);
                             break;
@@ -299,7 +315,7 @@ var y = guiManagerInstance.transform.position.y;
     private void CreateHero(Vector3 pos, Hero hero)
     {
         //Get prefab resource
-        GameObject heroPrefab = (GameObject)Resources.Load(hero.CharType.ToString());
+        GameObject heroPrefab = (GameObject)Resources.Load(hero.heroType.ToString());
 
         GameObject heroInstance = (GameObject)GameObject.Instantiate(heroPrefab, pos, Quaternion.identity);
 

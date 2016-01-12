@@ -7,6 +7,13 @@ namespace Assets.Scripts.Char
 {
     public enum CharType
     {
+        Hero,
+        Enemy,
+        NonPlayerCharacter
+    }
+
+    public enum HeroType
+    {
         Fighter
     }
 }

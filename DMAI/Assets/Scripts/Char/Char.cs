@@ -10,13 +10,17 @@ namespace Assets.Scripts.Char
     {
         public Guid Id;
         public Vector3 Position;
-        public CharType CharType;
+        public CharType charType;
 
-        public Char(Vector2 position,CharType type)
+        public int Movement;
+        
+
+        public Char(Vector2 position)
         {
             Id = Guid.NewGuid();
             Position = position;
-            CharType = type;
         }
+
+         
     }
 }
